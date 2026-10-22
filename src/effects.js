@@ -321,6 +321,53 @@ function weClampSurfaceColor(hex, theme, fidelity) {
   return toHex(clamped.map((v, j) => v * f + rgb[j] * (1 - f)));
 }
 
+// ── #239：「全局 UI 配色」的**前景**色按主题钳制 ─────────────────────────────
+// 宿主的这几个令牌本来是**按主题成对**给的（浅 #4176e6 / 深 #7aaaff）；插件把它们
+// 接进「全局 UI 配色」后只剩一个与主题无关的标量 ⇒ 用户选暗色（现场 #242424）时，
+// 深色壁纸上链接文字 /「深度求索中…」/ 输入光标三处一起掉到 ~1.1:1（不可见）。
+// 本函数把这个标量还原成一对各自可读的值：比参考亮度暗的在深色档向白提亮、
+// 比它亮的在浅色档向黑压暗，**色相不变**（沿原色 → 纯白 / 纯黑的连线取最近合格点）。
+//
+// 参考亮度取**出厂 accent #4f8cff** —— 它就是没自定义配色时这几处的实际取值，于是
+//   · 默认配置逐位不变（零回归）；
+//   · 任何「比默认更容易看不见」的配色都被拉回**默认水平**，而不是另立一条新红线；
+//   · 宿主自己的深 / 浅原生值（#7aaaff / #4176e6）各自落在合格一侧 ⇒ 原样通过。
+// 这条口径与 weClampSurfaceColor 同源（#82 的「钳进可读亮度带」），只是判据换成了
+// 「不弱于出厂值」—— 前景色不需要覆盖主题底色，只需要不比默认更难读。
+//
+// 纯函数、无 DOM、不引用模块内其他常量：verify-glass-compositing 的 G9b 从产物里抽出来复算。
+// 输入不可解析（空串 / rgba / 老配置）⇒ 返回 null，调用方**不写**这对变量，
+// 样式表回落到标量 = 改前行为（与 weCheckedRowInk / wePopupRowPair 同一契约）。
+function weUiInk(hex, theme) {
+  const m = /^#?([0-9a-fA-F]{6})$/.exec(String(hex || ""));
+  if (!m) return null;
+  const s2l = (c) => { c /= 255; return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4); };
+  const lum = (c) => 0.2126 * s2l(c[0]) + 0.7152 * s2l(c[1]) + 0.0722 * s2l(c[2]);
+  const toHex = (c) => "#" + c.map((v) => Math.round(v).toString(16).padStart(2, "0")).join("");
+  const rgb = [0, 2, 4].map((i) => parseInt(m[1].slice(i, i + 2), 16));
+  const REF = lum([0x4f, 0x8c, 0xff]);     // 出厂 accent 的亮度：默认配置的原点
+  const dark = theme === "dark";
+  if (dark ? lum(rgb) >= REF : lum(rgb) <= REF) return toHex(rgb);
+  const target = dark ? [255, 255, 255] : [0, 0, 0];
+  const at = (t) => rgb.map((v, i) => v * (1 - t) + target[i] * t);
+  const ok = (c) => (dark ? lum(c) >= REF : lum(c) <= REF);
+  let lo = 0;   // 不合格端（原色）
+  let hi = 1;   // 合格端（纯白 / 纯黑必过）
+  for (let i = 0; i < 24; i++) {
+    const t = (lo + hi) / 2;
+    if (ok(at(t))) hi = t; else lo = t;
+  }
+  // 结果要四舍五入回 hex（每通道 1/255 量化）⇒ 量化可能把它推回不合格一侧，沿同一条
+  // 色相线逐档补到合格为止。亮度沿 t 单调 ⇒ 最多几十步必到纯白 / 纯黑（t=1 恒过）。
+  const fromHex = (h) => [0, 2, 4].map((i) => parseInt(h.slice(1 + i, 3 + i), 16));
+  let out = toHex(at(hi));
+  for (let i = 0; i < 64 && !ok(fromHex(out)); i++) {
+    hi = Math.min(1, hi + 1 / 512);
+    out = toHex(at(hi));
+  }
+  return out;
+}
+
 /**
  * 按主题取「玻璃颜色」（#159② 分主题玻璃色）。
  *
@@ -475,12 +522,31 @@ function applyEffects(opts) {
   //    是「全局配色用于直接调整全部」。总开关只决定**面板显示哪几行**与「全局配色」可否点击。
   // 令牌 → 宿主消费者的实证（DSH 产物 CSS，不是推断）见 lib/settings-schema.js 的 DEFAULTS
   // 注释与 src/styles.js 的「全局 UI 配色」段。
+  //
+  // #239：**前景**四项（链接 / 文件图标 / 页签与焦点环 / 深度求索状态）另外写一对
+  // `-light` / `-dark`（weUiInk 按主题钳制），由样式表按 data-ds-dark-theme 挑一侧 ——
+  // 与 `--we-surface-tint-light/dark` 同法，两档同时写，省掉一个主题观察者。
+  // 标量本身照写：老预设与第三方读的是它，"恒定义"这条口径不变；`-light/-dark` 缺席时
+  // 样式表回落到标量 ⇒ 逐位还原改前行为。
+  // ⚠️ 发送键（--we-ui-send）是**填充**不是前景，不进这对：它的消费者是按钮底色，
+  //    按前景亮度钳制会把它在浅色档压黑（宿主写死的白箭头那条契约另属一事，本处不涉）。
   const uiColor = (key) => selection[key] || selection.accent;
+  const uiPair = (name, key) => {
+    const raw = uiColor(key);
+    s.setProperty("--we-ui-" + name, raw);
+    const pair = { light: weUiInk(raw, "light"), dark: weUiInk(raw, "dark") };
+    for (const theme of ["light", "dark"]) {
+      const v = pair[theme];
+      // 不可解析 ⇒ 摘掉上一次可能残留的这一档（否则改设置后旧值会僵在 DOM 上）。
+      if (v) s.setProperty("--we-ui-" + name + "-" + theme, v);
+      else s.removeProperty("--we-ui-" + name + "-" + theme);
+    }
+  };
   s.setProperty("--we-ui-send", uiColor("uiColorSend"));
-  s.setProperty("--we-ui-link", uiColor("uiColorLink"));
-  s.setProperty("--we-ui-file-icon", uiColor("uiColorFileIcon"));
-  s.setProperty("--we-ui-tab", uiColor("uiColorTab"));
-  s.setProperty("--we-ui-deep-diving", uiColor("uiColorDeepDiving"));
+  uiPair("link", "uiColorLink");
+  uiPair("file-icon", "uiColorFileIcon");
+  uiPair("tab", "uiColorTab");
+  uiPair("deep-diving", "uiColorDeepDiving");
   // - --we-glass-alpha: white-overlay alpha of the glass surfaces. The 玻璃透明
   //   度 slider semantics: higher = MORE transparent (clearer wallpaper shows
   //   through), lower = closer to solid. 0% → ~0.25 (frosted, solid-ish),
@@ -696,6 +762,11 @@ function clearEffects() {
   s.removeProperty("--we-ui-file-icon");
   s.removeProperty("--we-ui-tab");
   s.removeProperty("--we-ui-deep-diving");
+  // #239：前景四项的按主题那一对（与 applyEffects 的 uiPair 写入成对）。
+  for (const name of ["link", "file-icon", "tab", "deep-diving"]) {
+    s.removeProperty("--we-ui-" + name + "-light");
+    s.removeProperty("--we-ui-" + name + "-dark");
+  }
   s.removeProperty("--we-glass-alpha");
   s.removeProperty("--we-glass-color");
   s.removeProperty("--we-surface-tint-light");

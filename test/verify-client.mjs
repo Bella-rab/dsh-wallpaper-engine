@@ -4689,6 +4689,106 @@ setTimeout(async () => {
     'negative control: 没调 disconnect 的观察者不许判成已断开');
 }
 
+// ── #239：全局 UI 配色的**前景**四项必须写出按主题的一对（行为级）─────────────────
+// 事故：这四项只写了一个与主题无关的标量 `--we-ui-*`，而宿主的对应令牌本来是浅/深成对的。
+// 用户选暗色（现场 #242424）时深色档丢掉它那一半 ⇒ 链接文字 /「深度求索中…」/ 输入光标
+// 在深色壁纸上 ~1.1:1（像素复核：字画了，只是与底色同色）。
+// 判据（走真 src/effects.js，与上面两条同一个 with 挂载台）：
+//   ① 四个前景项各自写出 -light / -dark 两个变量；
+//   ② 标量本身照旧写（"恒定义"口径不变，老预设与第三方读的是它）；
+//   ③ 暗色 accent 在深色档被提亮到不弱于出厂 accent 的亮度，浅色档原样放行；
+//   ④ 发送键（填充，不是前景）**不**进这对 —— 按前景钳制会把按钮底色压黑；
+//   ⑤ clearEffects 把两个新变量摘干净（否则卸载后旧值僵在 DOM 上）。
+{
+  const src = readFileSync(new URL('../src/effects.js', import.meta.url), 'utf8');
+  const lumOf = (hex) => {
+    const m = /^#?([0-9a-fA-F]{6})$/.exec(String(hex || ''));
+    if (!m) return NaN;
+    const lin = [0, 2, 4].map((i) => parseInt(m[1].slice(i, i + 2), 16) / 255)
+      .map((v) => (v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4)));
+    return 0.2126 * lin[0] + 0.7152 * lin[1] + 0.0722 * lin[2];
+  };
+  const mk = (accent) => {
+    const bag = [];
+    const body = {
+      style: { setProperty: (k, v) => bag.push([k, v]), removeProperty: (k) => bag.push([k, null]) },
+      _attrs: new Set(),
+      setAttribute(k) { this._attrs.add(k); },
+      removeAttribute(k) { this._attrs.delete(k); },
+      hasAttribute(k) { return this._attrs.has(k); },
+      offsetHeight: 1,
+    };
+    const target = {
+      selection: {
+        scrim: 0, wallpaperOpacity: 40, accent, glassColor: '#ffffff', glassAlpha: 0,
+        blur: 0, border: 0, fontCustom: false, caretColor: '', sidebarBlur: 0, sidebarAlpha: 0,
+        sidebarColor: '#ffffff', sidebarContentAlpha: 0, sidebarContentColor: '', sidebarGlass: true,
+        glassWindow: false, wallpaperBlur: 0, backgroundBrightness: 100, backgroundContrast: 100,
+        backgroundSaturate: 100, objectFit: 'cover', flip: false,
+        uiColorCustom: false, uiColorSend: '', uiColorLink: '', uiColorFileIcon: '', uiColorTab: '', uiColorDeepDiving: '',
+      },
+      document: { body, getElementById: () => null, createElement: () => ({ style: {}, dataset: {} }), head: { appendChild: () => {} } },
+      getComputedStyle: () => ({ getPropertyValue: () => '' }),
+      MutationObserver: class { constructor() {} observe() {} disconnect() {} },
+      GLASS_SATURATE: 1.3, SCRIM_ID: 'we-scrim', LAYER_ID: 'we-layer',
+      adapterCaps: () => ({ target: 'plain-browser' }),
+      detectMicaSupport: () => true, detectSoftwareRender: () => false,
+      useLegacySaturateCoupling: () => false,
+      weClampSurfaceColor: (hex) => hex,
+      snapshotHostFontDefaults: () => {}, applyComponentFonts: () => {}, removeFontStyles: () => {},
+      removeComponentFonts: () => {}, applyCaretStyles: () => {}, removeCaretStyles: () => {},
+      syncSceneAudio: () => {},
+    };
+    const scope = new Proxy(target, {
+      has: (t, k) => (k in t) || !(k in globalThis),
+      get: (t, k) => (k in t ? t[k] : () => undefined),
+      set: () => true,
+    });
+    const mod = new Function('__scope',
+      'with (__scope) { ' + stripExportBlocks(src) + '\nreturn { applyEffects, clearEffects }; }')(scope);
+    const map = () => new Map(bag.map(([k, v]) => [k, v]));
+    bag.length = 0;
+    mod.applyEffects();
+    return { written: map(), mod, bag };
+  };
+
+  const dark = mk('#242424');
+  const FOREGROUND = ['link', 'file-icon', 'tab', 'deep-diving'];
+  const missing = [];
+  for (const n of FOREGROUND) {
+    for (const t of ['light', 'dark']) {
+      const v = dark.written.get('--we-ui-' + n + '-' + t);
+      if (typeof v !== 'string' || !/^#[0-9a-f]{6}$/i.test(v)) missing.push('--we-ui-' + n + '-' + t);
+    }
+  }
+  assert.equal(missing.length, 0,
+    '#239：四个前景项各自必须写出 -light / -dark 一对（缺=' + missing.join(', ') + '）');
+  assert.ok(FOREGROUND.every((n) => typeof dark.written.get('--we-ui-' + n) === 'string'),
+    '#239：标量 --we-ui-* 仍须恒定义（老预设与第三方读的是它）');
+  const refLum = lumOf('#4f8cff');
+  assert.ok(lumOf(dark.written.get('--we-ui-link-dark')) >= refLum - 1e-9,
+    '#239：暗 accent 在深色档必须被提亮到不弱于出厂 accent —— 实测 '
+    + dark.written.get('--we-ui-link-dark') + ' L=' + lumOf(dark.written.get('--we-ui-link-dark')).toFixed(4)
+    + ' vs ref L=' + refLum.toFixed(4));
+  assert.equal(dark.written.get('--we-ui-link-light'), '#242424',
+    '#239：浅色档原样放行（暗色在浅底上本来就是可读的）');
+  assert.ok(!dark.written.has('--we-ui-send-light') && !dark.written.has('--we-ui-send-dark'),
+    '#239：发送键是**填充**不是前景，不得进按主题钳制的那一对（会把它在浅色档压黑）');
+  // 负对照：改前的效果 —— 只写标量、没有这对变量 ⇒ 上面的缺失判据必然非空。
+  const preFix = new Map(FOREGROUND.flatMap((n) => [['--we-ui-' + n, '#242424']]).concat([['--we-ui-send', '#242424']]));
+  const preFixMissing = FOREGROUND.flatMap((n) => ['light', 'dark']
+    .filter((t) => !/^#[0-9a-f]{6}$/i.test(String(preFix.get('--we-ui-' + n + '-' + t) || ''))));
+  assert.equal(preFixMissing.length, FOREGROUND.length * 2,
+    'negative control: 改前形态（只有标量）会被同一条缺失判据全部判出');
+  // ⑤ 卸载：两个新变量必须被摘掉。
+  dark.bag.length = 0;
+  dark.mod.clearEffects();
+  const leftovers = FOREGROUND.flatMap((n) => ['light', 'dark']
+    .filter((t) => dark.written.get('--we-ui-' + n + '-' + t) !== null
+      && !dark.bag.some(([k, v]) => k === '--we-ui-' + n + '-' + t && v === null)));
+  assert.equal(leftovers.length, 0, '#239：clearEffects 必须把 -light/-dark 四对八条摘干净（残留=' + leftovers.join(', ') + '）');
+}
+
 // ── #148 宿主半：焦点被**无手势地**搬进壁纸帧时必须交还给用户本来在用的元素 ──────────
 // 事故：壁纸（WE 场景 / 网页）每 0.9–3.6 s 调一次 `element.focus()`，把键盘从 DSH 手里拿走 ——
 // 用户在输入框打字、输入法候选到一半就断。壁纸帧那一半在 `lib/we-focus-guard.js`（手势窗口），

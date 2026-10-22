@@ -376,6 +376,7 @@ node test/tools/host-route-index.mjs --write   # 重算并写入 docs/ROUTE-INDE
 | `token-contract.mjs` | **`--dsw-*` 令牌契约的生成与核对**（共存审计 S2）：从 `src/styles.js` 的 CSS 模板现算「改写了哪些 token、在哪个门控下」，`--write` 重算生成物 `docs/TOKEN-CONTRACT.md`（守卫 `verify-token-contract` 逐字节比对） | `node test/tools/token-contract.mjs [--write] [--stats]` |
 | `underlay-pixel-rig.mjs` | **画布兜底色**的真浏览器像素对照：壁纸的像素没送到屏上时，页面自己画的是什么颜色（掉层 → 白闪还是同色底） | `node test/tools/underlay-pixel-rig.mjs <bundle.js> [label]` |
 | `fx-perf-rig.mjs` | **光效层帧耗时对照**（issue #190）：真浏览器里跑真的 `packages/fx/src/fx-layer.js`，灌固定指针轨迹 + 周期性点击，报帧间隔 mean / p50 / p95 / max。A/B 走两份 `fx-layer.js` | `node test/tools/fx-perf-rig.mjs <fx-layer.js> [label]` |
+| `ui-ink-rig.mjs` | **「全局 UI 配色」前景色的真浏览器对照**（issue #239）：把产物里那份注入样式表放进最小页面，按 `data-ds-dark-theme` 切换，用 `getComputedStyle` 读链接 / 深度求索 / 页签与焦点环 / 文件图标四处前景的真实取值，再对给定壁纸底色算对比度。`--shots` 另存四张真截图 + 并排对比图，并**从截图像素**反算对比度（独立交叉验证："令牌算出来是多少" vs "屏幕上画成什么样"）。`fixed` × `pre-fix`（叠一层改前的深色孪生块）两栏，后者必须红 —— 装置没牙就换不来结论 | `node test/tools/ui-ink-rig.mjs [accent] [r,g,b] [--shots <dir>]`（缺省 = issue 现场 `#242424` / `50,43,42`） |
 | `weT-shim.mjs` | 给**单独 import `src/**`** 的守卫装身份译文层（`weT(k) === k`，与 bundle 里中文态逐字一致） | `node test/tools/weT-shim.mjs` |
 
 > 其中 `host-route-index.mjs` / `js-text.mjs` / `css-text.mjs` / `branch-notify.mjs` / `guard-chain.mjs` /

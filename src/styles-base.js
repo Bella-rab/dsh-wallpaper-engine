@@ -490,22 +490,29 @@ const CSS_BASE = `
      ⚠️ 本段在**模板字符串**里：注释内**不许出现反引号**（会把 CSS 字符串提前终止，
         build-client 报 "postfix operation" 一类的怪错）。示范令牌名时不加引号。 */
   body[data-we-glass-page] {
-    --dsw-alias-link: var(--we-ui-link, #4f8cff);
-    --dsw-alias-label-deep-diving: var(--we-ui-deep-diving, #4f8cff);
+    --dsw-alias-link: var(--we-ui-link-light, var(--we-ui-link, #4f8cff));
+    --dsw-alias-label-deep-diving: var(--we-ui-deep-diving-light, var(--we-ui-deep-diving, #4f8cff));
     /* 微光伴生色：由主色推出（往白里提一档），不新增设置键。 */
-    --dsw-alias-label-deep-diving-shimmer: color-mix(in srgb, var(--we-ui-deep-diving, #4f8cff) 62%, #ffffff);
-    --dsw-alias-state-business-primary: var(--we-ui-tab, #4f8cff);
+    --dsw-alias-label-deep-diving-shimmer: color-mix(in srgb, var(--we-ui-deep-diving-light, var(--we-ui-deep-diving, #4f8cff)) 62%, #ffffff);
+    --dsw-alias-state-business-primary: var(--we-ui-tab-light, var(--we-ui-tab, #4f8cff));
   }
-  /* 全局 UI 配色的**深色孪生块**：本组映射其实**与主题无关**（四个值全部来自 --we-ui-*，
-     浅深两档取值逐字相同），单独写一份是**本仓约定**而非主题分叉 ——
-     verify-glass-compositing 的 G8 要求「任何 alias 接管都必须在浅 / 深两个 body 级块里
-     各出现一次」，它防的是"只改浅色、漏了深色孪生"那类漂移。缺了这一块 G8 会判红，
-     而那个红是对的牙 —— 不为自己的功能把守卫放松。 */
+  /* 全局 UI 配色的**深色档**：映射集合与浅色块逐 token 同形（G8 守形状），但**取值分叉**
+     —— 前景四项读各自的 -dark 变量（issue #239）。
+     此前这里与浅色块逐字相同，理由是"四个值全部来自 --we-ui-*、与主题无关"；那正是缺陷
+     本身：宿主的这几个令牌本来是**按主题成对**给的（浅 #4176e6 / 深 #7aaaff），被压成一个
+     标量之后，用户选暗色时深色档丢掉了它那一半 —— 现场实测链接文字 / 「深度求索中…」/
+     输入光标在深色壁纸上只有 ~1.1:1（隐形）。
+     现在 effects.js 的 weUiInk 把标量按主题钳制出一对（不弱于出厂 accent 的可读性），
+     这里只负责按 data-ds-dark-theme 挑一侧 —— 与 --we-surface-tint-light/dark 同一手法，
+     两档同时写、样式表挑，省掉一个主题观察者。
+     ⚠️ 外层 var 的兜底**仍然是标量**：老预设 / 第三方只写 --we-ui-*，或值不可解析时
+        weUiInk 返回 null 不写这一对 ⇒ 逐位回落改前行为（优雅降级，不炸）。
+     ⚠️ G8 仍然要求两个 body 级块里**每个 alias 各出现一次**；这里四个 token 一个不少。 */
   body[data-ds-dark-theme][data-we-glass-page] {
-    --dsw-alias-link: var(--we-ui-link, #4f8cff);
-    --dsw-alias-label-deep-diving: var(--we-ui-deep-diving, #4f8cff);
-    --dsw-alias-label-deep-diving-shimmer: color-mix(in srgb, var(--we-ui-deep-diving, #4f8cff) 62%, #ffffff);
-    --dsw-alias-state-business-primary: var(--we-ui-tab, #4f8cff);
+    --dsw-alias-link: var(--we-ui-link-dark, var(--we-ui-link, #4f8cff));
+    --dsw-alias-label-deep-diving: var(--we-ui-deep-diving-dark, var(--we-ui-deep-diving, #4f8cff));
+    --dsw-alias-label-deep-diving-shimmer: color-mix(in srgb, var(--we-ui-deep-diving-dark, var(--we-ui-deep-diving, #4f8cff)) 62%, #ffffff);
+    --dsw-alias-state-business-primary: var(--we-ui-tab-dark, var(--we-ui-tab, #4f8cff));
   }
   /* 发送键：填充 + 悬停（悬停往黑压一档，与宿主原来的 fill→hover 明暗关系同向）。
      ⚠️ 作用域用 data-composer-seat（输入**座位**，宿主自带锚点）而**不是**
@@ -520,9 +527,14 @@ const CSS_BASE = `
     --dsw-alias-button-info-hover: color-mix(in srgb, var(--we-ui-send, #4f8cff) 82%, #000000);
   }
   /* 文件图标（</>）：同令牌的第二处作用域 ⇒ 内层更近的祖先胜出，于是与「链接文字」分开可调。
-     锚点对不上时（宿主改结构）本条不匹配，图标回落成「跟随链接文字」——**优雅降级**，不炸。 */
+     锚点对不上时（宿主改结构）本条不匹配，图标回落成「跟随链接文字」——**优雅降级**，不炸。
+     #239：这一处也要分主题 —— 它是元素级声明，特异性压过 body 上的深色块，只写一份就会
+     把深色档钳回来的值又盖回标量。 */
   body[data-we-glass-page] [data-presented-file] {
-    --dsw-alias-link: var(--we-ui-file-icon, #4f8cff);
+    --dsw-alias-link: var(--we-ui-file-icon-light, var(--we-ui-file-icon, #4f8cff));
+  }
+  body[data-ds-dark-theme][data-we-glass-page] [data-presented-file] {
+    --dsw-alias-link: var(--we-ui-file-icon-dark, var(--we-ui-file-icon, #4f8cff));
   }
 
   /* ── 文字面可读性下限 (text-surface readability floor, #82) ───────────────

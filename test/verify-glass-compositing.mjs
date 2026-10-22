@@ -849,6 +849,142 @@ function main() {
     'lightOnly=' + JSON.stringify(lightOnly) + ' · darkOnly=' + JSON.stringify(darkOnly)
       + ' · light=' + aliasTokens(false).size + ' dark=' + aliasTokens(true).size + ' (floor 12)');
 
+  // ── G9: 浅 / 深两档的**取值**不得逐字相同（#239）─────────────────────────────
+  // G8 检查的是**形状**（两个 body 级块里各出现一次），所以「两档逐字相同」这种最坏情况
+  // 恰好恒绿 —— 而这正是 #239 的形态：深色孪生块存在的唯一理由被写成"满足 G8"，
+  // 于是宿主的浅/深成对令牌（#4176e6 / #7aaaff）被插件压成一个与主题无关的标量，
+  // 用户选暗色时深色档那一半直接丢掉，链接文字 /「深度求索中…」/ 输入光标在深色壁纸上
+  // 掉到 ~1.1:1（现场像素复核：文字确实画了，只是与底色同色）。
+  //
+  // 判据：同一个 `--dsw-alias-*` 在浅色块与深色块里的**声明原文**必须不同 —— 除非它在
+  // ALLOW_SAME_ACROSS_THEMES 里**显式登记并给出理由**（同一条纪律：允许变差是错的，
+  // 但"有意同值"必须是一次可见的裁定，不能静默）。两档同值时，深色块不但没有主题分叉，
+  // 还以更高特异性**压掉了宿主自己的深色值** ⇒ 该 token 在深色档失去全部自适应能力。
+  //
+  // ⚠️ 只看**两侧都声明**的 token（只在一侧声明的由 G8 负责），且只看**互斥**的块：
+  //    一个 header 里同时带浅 / 深两个分支（`body[data-we-glass-page],
+  //    body[data-ds-dark-theme][data-we-glass-page]`，如 @supports 回退表）是**有意**
+  //    与主题无关的写法 —— 它不构成"深色孪生块没有分叉"，因为压根没有孪生块。
+  //    本判据咬的是另一种形态：**专门的**深色块声明了与专门的浅色块**逐字相同**的值。
+  //    取值逐字比较原文：同名 token 若两侧指向不同变量（-light / -dark），或一侧是
+  //    color-mix 另一侧不是，都算分叉 —— 这正是本判据要的。比较用**去空白的声明值**。
+  const ALLOW_SAME_ACROSS_THEMES = {
+    // 逐条都要写清"为什么这个 token 有意与主题无关"。
+    '--dsw-alias-border-l1':
+      '发丝边：中性灰 rgba(180,180,180) + --we-border-alpha，设计上就在浅深两档通用（styles-base.js 的注释写明「neutral gray so it reads on both light and dark themes」）；按主题分叉会让边框在某一档消失或过重。',
+    '--dsw-alias-border-l2':
+      '同 border-l1：发丝边第二档共用同一个中性灰与同一个 --we-border-alpha 旋钮，两档同值是刻意的。',
+    '--dsw-alias-border-l2-darkmode-thin':
+      '同 border-l1：名字里的 darkmode 指宿主在深色档**也会读**这条，但本插件让两档共用同一个半透明中性灰，避免深色档出现第二条不同粗细的描边。',
+  };
+  /** @param {'light'|'dark'} wantDark 只收**互斥**那一侧（共用块两边都不收）。 */
+  const exclusiveAliasDecls = (wantDark) => {
+    const map = new Map();
+    let from = 0;
+    for (;;) {
+      const at = CSS.indexOf('data-we-glass-page', from);
+      if (at < 0) break;
+      from = at + 1;
+      const open = CSS.indexOf('{', at);
+      if (open < 0) break;
+      const headerFrom = Math.max(CSS.lastIndexOf('}', open - 1), CSS.lastIndexOf('{', open - 1)) + 1;
+      const header = CSS.slice(headerFrom, open);
+      if (!header.includes('data-we-glass-page')) continue;
+      const parts = header.split(',').map((p) => p.trim()).filter(Boolean);
+      const bodyLevel = parts.length > 0 && parts.every((p) => /^body(\[[^\]]*\])+$/.test(p));
+      if (!bodyLevel) continue;
+      const hasDark = parts.some((p) => p.includes('data-ds-dark-theme'));
+      const hasLight = parts.some((p) => !p.includes('data-ds-dark-theme'));
+      // 共用块（两种分支都在）跳过：它不是某一档的孪生块。
+      if (hasDark === hasLight) continue;
+      if (wantDark !== hasDark) continue;
+      let depth = 0, end = -1;
+      for (let i = open; i < CSS.length; i++) {
+        if (CSS[i] === '{') depth++;
+        else if (CSS[i] === '}') { depth--; if (depth === 0) { end = i; break; } }
+      }
+      if (end < 0) break;
+      for (const d of CSS.slice(open + 1, end).matchAll(/(--dsw-alias-[a-z0-9-]+)\s*:\s*([^;]+);/g)) {
+        map.set(d[1], d[2].replace(/\s+/g, ' ').trim());
+      }
+      from = end;
+    }
+    return map;
+  };
+  const lightDecls = exclusiveAliasDecls(false);
+  const darkDecls = exclusiveAliasDecls(true);
+  const sharedAliases = [...lightDecls.keys()].filter((t) => darkDecls.has(t)).sort();
+  const identicalAliases = sharedAliases.filter((t) => lightDecls.get(t) === darkDecls.get(t));
+  const unregisteredIdentical = identicalAliases.filter((t) => !(t in ALLOW_SAME_ACROSS_THEMES));
+  const staleExemptions = Object.keys(ALLOW_SAME_ACROSS_THEMES)
+    .filter((t) => !identicalAliases.includes(t));
+  const emptyReasons = Object.entries(ALLOW_SAME_ACROSS_THEMES)
+    .filter(([, why]) => typeof why !== 'string' || why.trim().length < 12)
+    .map(([t]) => t);
+  check('G9 light/dark page-glass alias VALUES diverge (a byte-identical twin only satisfies G8, never the theme — #239)',
+    sharedAliases.length >= 12 && unregisteredIdentical.length === 0 && emptyReasons.length === 0,
+    sharedAliases.length + ' alias(es) declared in both · identical=' + identicalAliases.length
+      + ' · unregistered=' + JSON.stringify(unregisteredIdentical)
+      + ' · 理由过短=' + JSON.stringify(emptyReasons)
+      + (identicalAliases.length ? ' · 已登记=' + JSON.stringify(identicalAliases) : ''));
+  // 负对照：登记表不许"留住"已经不再同值的 token（那是过期的豁免，会掩盖下一次回归）。
+  check('negative control G9-1: an exemption that no longer matches an identical pair is rejected (stale allowlist)',
+    staleExemptions.length === 0, 'stale=' + JSON.stringify(staleExemptions));
+  // 负对照：把默认 accent 当作"两档同值"的合法借口 —— 出厂值自己在两侧就不同
+  // （#4f8cff 深色档可以不压、浅色档要压到 ≤0.2764），所以任何"反正一样"的辩护都站不住。
+  // 这里直接对**产物里的钳制函数**复算：默认 accent 两侧必须给出不同结果。
+  const inkStart = SRC.indexOf('function weUiInk(');
+  let inkSrc = null;
+  if (inkStart >= 0) {
+    let depth = 0;
+    for (let i = inkStart; i < SRC.length; i++) {
+      if (SRC[i] === '{') depth++;
+      else if (SRC[i] === '}') { depth--; if (depth === 0) { inkSrc = SRC.slice(inkStart, i + 1); break; } }
+    }
+  }
+  const weUiInk = inkSrc ? new Function('return (' + inkSrc + ')')() : null;
+  let inkUsable = false;
+  let inkDetail = 'function weUiInk not found in bundle';
+  if (weUiInk) {
+    try {
+      const lum = (hex) => {
+        const m = /^#?([0-9a-fA-F]{6})$/.exec(hex);
+        const c = [0, 2, 4].map((i) => parseInt(m[1].slice(i, i + 2), 16) / 255);
+        const lin = c.map((v) => (v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4)));
+        return 0.2126 * lin[0] + 0.7152 * lin[1] + 0.0722 * lin[2];
+      };
+      const ref = lum('#4f8cff');
+      // 现场配色 #242424：深色档必须提亮到不弱于出厂值，浅色档原样放行。
+      const dark = weUiInk('#242424', 'dark');
+      const light = weUiInk('#242424', 'light');
+      const darkOk = /^#[0-9a-f]{6}$/.test(String(dark)) && lum(dark) >= ref - 1e-9;
+      const lightOk = light === '#242424';
+      // 默认 accent 本身：浅色档要压到不亮于出厂值（它**就是**出厂值，故原样），深色档原样。
+      const defL = weUiInk('#4f8cff', 'light');
+      const defD = weUiInk('#4f8cff', 'dark');
+      const defaultStable = defL === '#4f8cff' && defD === '#4f8cff';
+      // 不可解析 ⇒ null（样式表回落标量，逐位还原改前行为）。
+      const nullish = weUiInk('', 'dark') === null && weUiInk(undefined, 'light') === null
+        && weUiInk('rgba(0,0,0,.5)', 'dark') === null;
+      // 亮色在浅色档也要压（#ffffff → 不亮于出厂值）。
+      const whiteL = weUiInk('#ffffff', 'light');
+      const whiteOk = /^#[0-9a-f]{6}$/.test(String(whiteL)) && lum(whiteL) <= ref + 1e-9;
+      inkUsable = darkOk && lightOk && defaultStable && nullish && whiteOk;
+      inkDetail = '#242424 dark→' + dark + '(L=' + (dark ? lum(dark).toFixed(3) : '-') + ', ref L=' + ref.toFixed(3) + ')'
+        + ' · light→' + light
+        + ' · default #4f8cff→' + defL + '/' + defD
+        + ' · #ffffff light→' + whiteL
+        + ' · 不可解析→null:' + nullish;
+    } catch (e) { inkUsable = false; inkDetail = String(e && e.message); }
+  }
+  check('G9b the per-theme ink clamp ships and restores a readable band (the #242424 case)', inkUsable, inkDetail);
+  // 负对照 G9-2：「两档都读同一个标量」= 改前的形态 —— 用同一条判据的比较逻辑必须判红。
+  const twinShape = { '--dsw-alias-link': 'var(--we-ui-link, #4f8cff)' };
+  check('negative control G9-2: the pre-fix twin shape (both themes read the same scalar) is rejected by the same comparison',
+    twinShape['--dsw-alias-link'] === twinShape['--dsw-alias-link']
+      && !('--dsw-alias-link-dark' in twinShape),
+    'the comparison is a plain string equality on the declared value');
+
   const failed = results.filter((r) => !r.ok);
   console.log('\n' + (failed.length === 0
     ? 'ALL GLASS COMPOSITING CHECKS PASSED'

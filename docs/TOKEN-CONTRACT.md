@@ -9,8 +9,8 @@
 > **无门控** = 两者都不挂（共存审计 M1 的全部暴露面 —— 白名单见下表，新增一条守卫即红）。
 > JS 侧的令牌写入（`src/font/apply.js` 的 label 族等）不在本契约口径内，见 `docs/DSH-UI-INTERFACES.md`。
 
-共 **183** 条声明 / **59** 个不同令牌。门控归属：
-玻璃 **152** 条 · 壁纸 **12** 条 · 无门控 **19** 条。
+共 **184** 条声明 / **59** 个不同令牌。门控归属：
+玻璃 **153** 条 · 壁纸 **12** 条 · 无门控 **19** 条。
 
 ## 无门控声明（白名单 —— M1 的全部暴露面）
 
@@ -63,8 +63,8 @@
 | `--dsw-alias-button-floating-fill` | 3 | 玻璃(3) | src/styles-base.js:281, src/styles-base.js:383, src/styles-shell.js:377 |  |
 | `--dsw-alias-button-floating-hover` | 1 | 玻璃(1) | src/styles-shell.js:378 |  |
 | `--dsw-alias-button-ghost-active-fill` | 2 | 玻璃(2) | src/styles-base.js:284, src/styles-base.js:386 |  |
-| `--dsw-alias-button-info-fill` | 1 | 玻璃(1) | src/styles-base.js:519 |  |
-| `--dsw-alias-button-info-hover` | 1 | 玻璃(1) | src/styles-base.js:520 |  |
+| `--dsw-alias-button-info-fill` | 1 | 玻璃(1) | src/styles-base.js:526 |  |
+| `--dsw-alias-button-info-hover` | 1 | 玻璃(1) | src/styles-base.js:527 |  |
 | `--dsw-alias-button-primary-dimmed` | 1 | 玻璃(1) | src/styles-chrome.js:116 |  |
 | `--dsw-alias-button-primary-fill` | 1 | 玻璃(1) | src/styles-chrome.js:114 |  |
 | `--dsw-alias-button-primary-hover` | 1 | 玻璃(1) | src/styles-chrome.js:115 |  |
@@ -74,15 +74,15 @@
 | `--dsw-alias-interactive-bg-hover-accent` | 3 | 玻璃(3) | src/styles-sidebar.js:66, src/styles-sidebar.js:230, src/styles-chrome.js:106 |  |
 | `--dsw-alias-interactive-bg-hover-solid` | 2 | 玻璃(2) | src/styles-base.js:293, src/styles-base.js:395 |  |
 | `--dsw-alias-label-caption` | 1 | 壁纸(1) | src/styles-base.js:459 |  |
-| `--dsw-alias-label-deep-diving` | 2 | 玻璃(2) | src/styles-base.js:494, src/styles-base.js:506 |  |
-| `--dsw-alias-label-deep-diving-shimmer` | 2 | 玻璃(2) | src/styles-base.js:496, src/styles-base.js:507 |  |
+| `--dsw-alias-label-deep-diving` | 2 | 玻璃(2) | src/styles-base.js:494, src/styles-base.js:513 |  |
+| `--dsw-alias-label-deep-diving-shimmer` | 2 | 玻璃(2) | src/styles-base.js:496, src/styles-base.js:514 |  |
 | `--dsw-alias-label-dimmed` | 1 | 壁纸(1) | src/styles-base.js:460 |  |
 | `--dsw-alias-label-primary` | 1 | 壁纸(1) | src/styles-base.js:455 | 正文灰阶（壁纸激活时压暗提对比） |
 | `--dsw-alias-label-primary-dimmed` | 1 | 壁纸(1) | src/styles-base.js:456 |  |
 | `--dsw-alias-label-primary-foreground` | 1 | 玻璃(1) | src/styles-chrome.js:123 |  |
 | `--dsw-alias-label-secondary` | 1 | 壁纸(1) | src/styles-base.js:457 | 次要文字灰阶 |
 | `--dsw-alias-label-tertiary` | 1 | 壁纸(1) | src/styles-base.js:458 |  |
-| `--dsw-alias-link` | 3 | 玻璃(3) | src/styles-base.js:493, src/styles-base.js:505, src/styles-base.js:525 |  |
+| `--dsw-alias-link` | 4 | 玻璃(4) | src/styles-base.js:493, src/styles-base.js:512, src/styles-base.js:534, src/styles-base.js:537 |  |
 | `--dsw-alias-markdown-citation` | 4 | 玻璃(2) + 无门控(2) | src/styles-base.js:296, src/styles-base.js:398, src/styles-shell.js:551, src/styles-shell.js:565 |  |
 | `--dsw-alias-markdown-code-block` | 6 | 玻璃(4) + 无门控(2) | src/styles-base.js:314, src/styles-base.js:408, src/styles-shell.js:411, src/styles-shell.js:545, src/styles-shell.js:559, src/styles-chrome.js:220 | markdown 代码块底 |
 | `--dsw-alias-markdown-code-block-banner` | 6 | 玻璃(4) + 无门控(2) | src/styles-base.js:317, src/styles-base.js:411, src/styles-shell.js:412, src/styles-shell.js:546, src/styles-shell.js:560, src/styles-chrome.js:221 | markdown 代码条幅底 |
@@ -95,7 +95,7 @@
 | `--dsw-alias-scrollbar-bg-l2` | 2 | 玻璃(2) | src/styles-shell.js:95, src/styles-shell.js:106 |  |
 | `--dsw-alias-scrollbar-hover-l1` | 2 | 玻璃(2) | src/styles-shell.js:96, src/styles-shell.js:107 |  |
 | `--dsw-alias-scrollbar-hover-l2` | 2 | 玻璃(2) | src/styles-shell.js:97, src/styles-shell.js:108 |  |
-| `--dsw-alias-state-business-primary` | 5 | 玻璃(5) | src/styles-base.js:497, src/styles-base.js:508, src/styles-sidebar.js:67, src/styles-sidebar.js:231, src/styles-chrome.js:117 |  |
+| `--dsw-alias-state-business-primary` | 5 | 玻璃(5) | src/styles-base.js:497, src/styles-base.js:515, src/styles-sidebar.js:67, src/styles-sidebar.js:231, src/styles-chrome.js:117 |  |
 | `--dsw-alias-turn-trigger-bg` | 3 | 玻璃(3) | src/styles-shell.js:199, src/styles-shell.js:209, src/styles-ext.js:120 |  |
 | `--dsw-alias-turn-trigger-bg-hover` | 3 | 玻璃(3) | src/styles-shell.js:202, src/styles-shell.js:212, src/styles-ext.js:121 |  |
 | `--dsw-mask-blur` | 1 | 玻璃(1) | src/styles-shell.js:81 |  |
