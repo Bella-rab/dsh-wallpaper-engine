@@ -256,6 +256,52 @@ const CSS_CHROME = `    /* ── 统一控件 token：一套高度/圆角/墨�
     backdrop-filter: none !important;
   }
 
+  /* ── 第三方插件浮层的实底底板（issue #277）────────────────────────────────────
+     症状：装了带弹窗的第三方插件（任务看板之类）后，那个弹窗是**半透明**的 ——
+     背后的页面内容 / 兄弟弹窗一起透上来，叠成一团看不清。
+
+     根因（真 Chromium 实测，不是推断）：本插件把宿主的层令牌
+     --dsw-alias-bg-layer-1/2/3 与 --dsw-alias-bg-overlay **重映射成玻璃配方**
+     （半透明 + 地板色），而宿主自己的弹窗都有专门规则把面补回实底 / 补霜：
+       · 设置窗      [role="dialog"]:has([data-slot="settings.section"])
+       · 插件管理器  [data-install-registry]（上面那条 #156②）
+     第三方插件的浮层**一个都不匹配**这些锚点 ⇒ 它们读到的层令牌就是玻璃配方，
+     于是当场变成「半透明且没有 backdrop-filter」= 后面的东西直接透出。
+     实测（深色档，插件样式表 + 宿主令牌替身）：
+       宿主设置窗                    α = 1.000（有专门规则）
+       裸 role="dialog" 的第三方弹窗  α = 0.656、backdrop-filter: none
+       宿主的确认框 / 审批卡 / 问答卡  α = 0.656~0.662（同一个洞的受害者）
+
+     为什么不做「逐个适配插件」：既不可维护，也违反本仓「不猜 CSS 模块哈希」的纪律
+     （issue 里维护者也说"很难去一个个排查适配"）。这里只用**宿主自带的标准语义锚点**
+     （ARIA role / popover），第三方插件只要按标准写就自动覆盖。
+
+     三条纪律（verify-glass-surfaces 逐条守）：
+       · **只认 ARIA 语义**（role / popover 属性）—— 不把任何 data-* 宿主锚点
+         写进选择器：那会被 ② 组枚举成"未登记的玻璃面"（实测踩过），也会逼着以后
+         每加一个宿主面就来改这里。
+       · 门控挂在本仓自己的 data-we-floater-solid（body 级）上 —— W5 的"关 ⇒ 回退
+         干净"因此成立：摘掉属性，整组规则一起失效。
+       · 排除项同样用 ARIA / 本仓自己的门，不引用宿主 data 锚点。
+     底板取色：复用 --we-readability-base（玻璃那套按主题钳制的染色地板）⇒ 底板跟着
+     主题与用户选的玻璃色走，不是硬编码另一种灰；深浅两档由该变量自身切换。
+
+     ⚠️ 只调 background-color 与不会生效的 backdrop-filter，不碰 border / 圆角 / 阴影。
+     ⚠️ 门是 data-we-floater-solid（设置项 floaterSolidBase，默认开）：关掉即恢复
+        宿主原生的半透明观感。 */
+  body[data-we-glass-page][data-we-floater-solid] [role="dialog"]:not([data-we-surface-runtime]) {
+    background-color: var(--we-readability-base, #ffffff) !important;
+    -webkit-backdrop-filter: none !important;
+    backdrop-filter: none !important;
+  }
+  /* 非 dialog 的自绘浮层：只认带 ARIA 浮层语义的那批（tooltip / listbox / popover）。
+     role="menu" 不在列：宿主的菜单走自己的材质通道，拍成实底会改掉它的原生设计。 */
+  body[data-we-glass-page][data-we-floater-solid] :is([role="tooltip"], [role="listbox"], [popover]):not([data-we-surface-runtime]) {
+    background-color: var(--we-readability-base, #ffffff) !important;
+    -webkit-backdrop-filter: none !important;
+    backdrop-filter: none !important;
+  }
+
   /* Section wrapper：融合官方设置页（官方分区没有外壳卡），内容直接落在设置对话框的面层上。
      注意类名与 DOM 结构是**契约**，守卫按结构断言 —— 拍平的是外观，不是这层壳的存在。 */
   .we-picker__card-shell { display: block; }

@@ -737,6 +737,9 @@ function clearEffects() {
   s.removeProperty("--we-sidebar-tint");
   document.body.removeAttribute("data-we-sidebar-glass");
   document.body.removeAttribute("data-we-sidebar-fullclear");
+  // #277：第三方浮层实底底板门（与 glass.js 的 applyGlass 成对；漏撤 ⇒ 插件卸载后
+  // 第三方插件的弹窗仍被拍成实底，宿主原生观感回不去）。
+  document.body.removeAttribute("data-we-floater-solid");
   document.body.removeAttribute("data-we-adapter"); // 适配目标钩子随 fiber 注销
   document.body.removeAttribute("data-we-mica"); // #73 Mica 能力钩子随 fiber 注销
   document.body.removeAttribute("data-we-glass-fallback"); // #95 软件渲染回退钩子同上

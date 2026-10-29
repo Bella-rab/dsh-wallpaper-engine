@@ -286,6 +286,12 @@ function applyGlass(selection, s) {
   if (selection.sidebarFullClear) document.body.setAttribute("data-we-sidebar-fullclear", "on");
   else document.body.removeAttribute("data-we-sidebar-fullclear");
 
+  // #277：第三方插件浮层的实底底板（设置键 floaterSolidBase，默认开）。
+  // 与上面那条同形：值与门正交的属性；配对的卸载撤除在 effects.js 的 clearEffects
+  // （漏撤 ⇒ 插件卸载后规则组照旧生效，宿主原生观感回不去）。
+  if (selection.floaterSolidBase !== false) document.body.setAttribute("data-we-floater-solid", "on");
+  else document.body.removeAttribute("data-we-floater-solid");
+
   // ── 插件自身浮层的**按面**釉层变量 ───────────────────────────────────────────
   // 该面的 CSS 现在读 `var(--we-floaters-<x>, <原全局表达式>)`（styles.js 的
   // `.we-update-notice` 与 `.we-repo-panel--open` 两条规则）⇒ 这一组变量就是它的来源。

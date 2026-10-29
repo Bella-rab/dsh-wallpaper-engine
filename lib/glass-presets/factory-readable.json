@@ -77,6 +77,7 @@
     "thinkingTriggerBlur": 60,
     "floatersTransparency": 100,
     "floatersBlur": 60,
+    "floaterSolidBase": true,
     "leftSidebarTransparency": 100,
     "leftSidebarBlur": 60,
     "titlebarTransparency": 100,
